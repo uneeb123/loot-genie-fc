@@ -12,7 +12,7 @@ export const nFormatter = (num: number, digits: number = 4) => {
   const item = lookup.findLast((item) => num >= item.value);
   return item
     ? (num / item.value).toFixed(digits).replace(regexp, "").concat(item.symbol)
-    : parseFloat(num.toFixed(digits));
+    : parseFloat(num.toFixed(digits)).toString();
 };
 
 export const countdownTimer = (seconds: number) => {

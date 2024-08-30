@@ -2,6 +2,8 @@ import { Address, createPublicClient, http, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import { DegenLotteryAbi } from "./abi/DegenLottery";
 import { LotteryAbi } from "./abi/Lottery";
+import { countdownTimer, nFormatter } from "./helper";
+import { getExchangeRates } from "./exchangeRate";
 
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
 const ALCHEMY_BASE_URL = `https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`;
@@ -15,6 +17,11 @@ const publicClient = createPublicClient({
   chain: base,
   transport: http(ALCHEMY_BASE_URL),
 });
+
+export enum SupportedToken {
+  ETH = "ETH",
+  DEGEN = "DEGEN",
+}
 
 export enum MethodName {
   // constants
@@ -36,54 +43,99 @@ export enum MethodName {
   minLpDeposit = "minLpDeposit",
 }
 
-const callContractMethod = async (methodName: string, degenToken: boolean) => {
-  return await publicClient.readContract({
-    address: degenToken ? DEGEN_LOTTERY_ADDRESS : ETH_LOTTERY_ADDRESS,
-    abi: degenToken ? DegenLotteryAbi : LotteryAbi,
-    functionName: methodName as any,
-  });
+const callContractMethod = async (
+  methodName: string,
+  token: SupportedToken
+) => {
+  if (token == SupportedToken.DEGEN) {
+    return await publicClient.readContract({
+      address: DEGEN_LOTTERY_ADDRESS,
+      abi: DegenLotteryAbi,
+      functionName: methodName as any,
+    });
+  } else {
+    return await publicClient.readContract({
+      address: ETH_LOTTERY_ADDRESS,
+      abi: LotteryAbi,
+      functionName: methodName as any,
+    });
+  }
 };
 
-export const getEndTime = async (degenToken: boolean) => {
+const getEndTime = async (token: SupportedToken) => {
   const lastLotteryEndTime = (await callContractMethod(
     MethodName.lastLotteryEndTime,
-    degenToken
+    token
   )) as bigint;
   const roundTripTime = (await callContractMethod(
     MethodName.roundDurationInSeconds,
-    degenToken
+    token
   )) as bigint;
   const endTime = lastLotteryEndTime + roundTripTime;
   return Number(endTime);
 };
 
-export const getTimeLeft = async (degenToken: boolean) => {
-  const endTime = await getEndTime(degenToken);
+const getTimeLeft = async (token: SupportedToken) => {
+  const endTime = await getEndTime(token);
   const currentTime = Math.floor(Date.now() / 1000);
   const timeLeftInSeconds = endTime - currentTime;
   return timeLeftInSeconds;
 };
 
-export const getTicketPrice = async (degenToken: boolean) =>
-  Number(await callContractMethod(MethodName.ticketPrice, degenToken));
+const getTicketPrice = async (token: SupportedToken) =>
+  Number(await callContractMethod(MethodName.ticketPrice, token));
 
-export const getPrize = async (degenToken: boolean) => {
+const getPrize = async (token: SupportedToken) => {
   const ticketsSoldBps = (await callContractMethod(
     MethodName.ticketCountTotalBps,
-    degenToken
+    token
   )) as bigint;
   const ticketPrice = (await callContractMethod(
     MethodName.ticketPrice,
-    degenToken
+    token
   )) as bigint;
   const lpPoolTotal = (await callContractMethod(
     MethodName.lpPoolTotal,
-    degenToken
+    token
   )) as bigint;
   const ticketSalesTotal = (ticketsSoldBps / BigInt(10000)) * ticketPrice;
   const prize = ticketSalesTotal > lpPoolTotal ? ticketSalesTotal : lpPoolTotal;
   // https://stackoverflow.com/questions/54409854/how-to-divide-two-native-javascript-bigints-and-get-a-decimal-result
   return Number((prize * BigInt(1000)) / BigInt(10 ** 18)) / 1000;
+};
+
+export interface LotteryDetails {
+  prize: string;
+  prizeUsd: number;
+  ticketPrice: number;
+  timeLeft: {
+    hours: number;
+    minutes: number;
+    seconds: number;
+  };
+}
+
+export const getLotteryDetails = async (
+  token: SupportedToken
+): Promise<LotteryDetails> => {
+  const prize = await getPrize(token);
+  const timeLeftRaw = await getTimeLeft(token);
+  const timeLeft = countdownTimer(timeLeftRaw);
+  let prizeUsd = 0;
+  const { ethToUsd, degenToUsd } = await getExchangeRates();
+  if (token == SupportedToken.DEGEN) {
+    prizeUsd = Math.floor(prize * degenToUsd);
+  } else {
+    prizeUsd = Math.floor(prize * ethToUsd);
+  }
+  const prizeFormatted = nFormatter(prize, 3);
+  const ticketPrice = await getTicketPrice(token);
+  return {
+    prize: prizeFormatted,
+    prizeUsd,
+    ticketPrice,
+    timeLeft,
+  };
 };
 
 export const chainId = "eip155:8453";

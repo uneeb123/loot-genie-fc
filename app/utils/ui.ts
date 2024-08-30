@@ -11,10 +11,45 @@ export const {
   Spacer,
   Text,
   VStack,
+  Image,
   vars,
 } = createSystem({
   colors: {
-    text: "#888",
+    text: "#FEC249",
+    white: "#FFFFFF",
     red: "#f13342",
+    background: "#693A9D",
+  },
+  fonts: {
+    default: [
+      {
+        name: "Open Sans",
+        source: "google",
+        weight: 400,
+      },
+      {
+        name: "Open Sans",
+        source: "google",
+        weight: 600,
+      },
+    ],
+    madimi: [
+      {
+        name: "Madimi One",
+        source: "google",
+      },
+    ],
+    montserrat: [
+      {
+        name: "Montserrat",
+        source: "google",
+        weight: 700,
+      },
+      {
+        name: "Montserrat",
+        source: "google",
+        weight: 600,
+      },
+    ],
   },
 });
