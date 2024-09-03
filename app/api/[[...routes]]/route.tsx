@@ -34,7 +34,7 @@ import { neynar, type NeynarVariables } from "frog/middlewares";
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY as string;
 
 type State = {
-  token: SupportedToken;
+  enter: Boolean;
 };
 
 const app = new Frog<{ State: State }>({
@@ -45,13 +45,14 @@ const app = new Frog<{ State: State }>({
   hub: neynarHub({ apiKey: "38B3178D-8E63-4CB5-9DD8-6FE7C9D3F0D1" }),
   title: "Loot Genie",
   initialState: {
-    token: SupportedToken.ETH,
+    enter: false,
   },
 });
 
 // Uncomment to use Edge Runtime
 // export const runtime = 'edge'
 
+// TODO: hook to the contract
 app.use(async (c, next) => {
   const ethLottery = await getLotteryDetails(SupportedToken.ETH);
   const degenLottery = await getLotteryDetails(SupportedToken.DEGEN);
@@ -68,6 +69,86 @@ app.use(
 );
 
 app.frame("/", (c) => {
+  return c.res({
+    image: "/img",
+    intents: [
+      <Button action="/enter">ENTER LOTTO</Button>,
+      <Button action="/tickets">MY TICKETS</Button>,
+      <Button action="/faq">FAQ</Button>,
+    ],
+  });
+});
+
+app.frame("/enter", (c) => {
+  return c.res({
+    image: "/enter-img",
+    intents: [
+      // <Button.Transaction target="/buy" action="/tickets">
+      //   BUY TICKET | 1K DEGEN
+      // </Button.Transaction>,
+      <Button.Transaction target="/claim" action="/tickets">
+        CLAIM FREE TICKET
+      </Button.Transaction>,
+      <Button.Reset>RESET</Button.Reset>,
+    ],
+  });
+});
+
+// TODO
+app.frame("/faq", (c) => {
+  return c.res({
+    image: "/faq-img",
+    intents: [<Button.Reset>RESET</Button.Reset>],
+  });
+});
+
+// TODO: design this ticket
+app.frame("/tickets", (c) => {
+  return c.res({
+    image: "/tickets-img",
+    intents: [<Button.Reset>RESET</Button.Reset>],
+  });
+});
+
+// TODO: finish buy functionality
+app.transaction("/buy", (c) => {
+  const { ethLottery, degenLottery } = c.var as {
+    degenLottery: LotteryDetails;
+    ethLottery: LotteryDetails;
+  };
+  const ticketPrice = ethLottery.ticketPrice;
+  return c.contract({
+    abi: LotteryAbi,
+    chainId: chainId,
+    functionName: MethodName.purchaseTickets,
+    args: [referrer],
+    to: ETH_LOTTERY_ADDRESS,
+    value: BigInt(ticketPrice),
+  });
+});
+
+// TODO: finish claim functionality
+app.transaction("/claim", (c) => {
+  const { ethLottery, degenLottery } = c.var as {
+    degenLottery: LotteryDetails;
+    ethLottery: LotteryDetails;
+  };
+  const ticketPrice = ethLottery.ticketPrice;
+  return c.contract({
+    abi: LotteryAbi,
+    chainId: chainId,
+    functionName: MethodName.purchaseTickets,
+    args: [referrer],
+    to: ETH_LOTTERY_ADDRESS,
+    value: BigInt(ticketPrice),
+  });
+});
+
+// =============================================
+//                    IMAGES
+// =============================================
+
+app.image("/img", (c) => {
   return c.res({
     image: (
       <div
@@ -142,106 +223,155 @@ app.frame("/", (c) => {
         />
       </div>
     ),
+    headers: {
+      "Cache-Control": "max-age=0",
+    },
   });
 });
 
-app.frame("/token/:token/", (c) => {
-  const token = c.req.param("token");
-  const degenToken = token.toUpperCase() == "DEGEN";
-  return c.res({
-    image: `/token/${token}/img`,
-    intents: [
-      // degenToken ? (
-      //   <Button.Transaction target="/token/degen/approveAndBuy">
-      //     Check Allowance
-      //   </Button.Transaction>
-      // ) : (
-      <Button.Transaction target={`/token/${token}/buy`} action="/finish">
-        Enter Lotto
-      </Button.Transaction>,
-      // ),
-    ],
-  });
-});
-
-app.image("/token/:token/img", (c) => {
-  const token = c.req.param("token");
-  const degenToken = token.toUpperCase() == "DEGEN";
-  const { ethLottery, degenLottery } = c.var as {
-    degenLottery: LotteryDetails;
-    ethLottery: LotteryDetails;
-  };
-  const lottery = degenToken ? degenLottery : ethLottery;
-  const { prize, prizeUsd, timeLeft } = lottery;
+app.image("/enter-img", (c) => {
   return c.res({
     image: (
-      <Box margin="52">
-        <Rows height="100%">
-          <Row>
-            <Columns>
-              <Column>
-                <Box marginBottom="2" marginRight="32">
-                  <Text size="24">{`Prize`}</Text>
-                </Box>
-              </Column>
-              <Column>
-                <Box>
-                  <Text size="32">{`${prize} ${
-                    degenToken ? "DEGEN" : "ETH"
-                  }`}</Text>
-                </Box>
-              </Column>
-            </Columns>
-          </Row>
-          <Row>
-            <Columns>
-              <Column>
-                <Box marginBottom="2" marginRight="32">
-                  <Text size="24">{`Prize (in USD)`}</Text>
-                </Box>
-              </Column>
-              <Column>
-                <Text size="32">{`$${prizeUsd}`}</Text>
-              </Column>
-            </Columns>
-          </Row>
-          <Row>
-            <Columns>
-              <Column>
-                <Box marginBottom="2" marginRight="32">
-                  <Text size="24">{`Time Left`}</Text>
-                </Box>
-              </Column>
-              <Column>
-                <HStack alignItems="flex-end">
-                  {timeLeft.hours && (
-                    <>
-                      <Text size="32">{`${timeLeft.hours} `}</Text>
-                      <Box paddingBottom="6" marginRight="10" marginLeft="4">
-                        <Text size="18">{`hr`}</Text>
-                      </Box>
-                    </>
-                  )}
-                  {timeLeft.minutes && (
-                    <>
-                      <Text size="32">{`${timeLeft.minutes} `}</Text>
-                      <Box paddingBottom="6" marginRight="10" marginLeft="4">
-                        <Text size="18">{`min`}</Text>
-                      </Box>
-                    </>
-                  )}
-                  <>
-                    <Text size="32">{`${timeLeft.seconds} `}</Text>
-                    <Box paddingBottom="6" marginRight="10" marginLeft="4">
-                      <Text size="18">{`sec`}</Text>
-                    </Box>
-                  </>
-                </HStack>
-              </Column>
-            </Columns>
-          </Row>
-        </Rows>
-      </Box>
+      <div
+        style={{
+          color: "white",
+          display: "flex",
+          fontSize: 60,
+          background: "linear-gradient(45deg, #251437, #693A9D)",
+          width: "100%",
+          height: "100%",
+          border: "4px solid white",
+          paddingTop: "30px",
+          paddingLeft: "50px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+            }}
+          >
+            <Text size="48" font="montserrat" weight="700">
+              {`FEELIN' LUCKY?`}
+            </Text>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              marginTop: "10px",
+              maxWidth: "80%",
+            }}
+          >
+            <Text size="18" color="white" font="montserrat" weight="700">
+              {`ENTER THE LOOT GENIE LOTTO FOR A CHANCE TO WIN DEGEN!`}
+            </Text>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              marginTop: "50px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                marginLeft: "30px",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  marginTop: "10px",
+                }}
+              >
+                <Text size="14" color="white" font="montserrat" weight="800">
+                  {`CURRENT POT`}
+                </Text>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  marginTop: "5px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "row",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      fontFamily: "montserrat",
+                      fontSize: "1.3em",
+                    }}
+                  >
+                    {`69,420`}
+                  </div>
+                  <img
+                    style={{
+                      display: "flex",
+                      marginTop: "30px",
+                      marginLeft: "10px",
+                    }}
+                    width="44px"
+                    height="38px"
+                    src="/degen.png"
+                  />
+                </div>
+                <Text
+                  size="16"
+                  color="white"
+                  font="montserrat"
+                >{`$123.1`}</Text>
+              </div>
+            </div>
+            <img
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+              }}
+              width="410px"
+              height="205px"
+              src="/union.png"
+            />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              marginTop: "50px",
+              marginLeft: "10px",
+            }}
+          >
+            <Text size="16" color="white" font="montserrat" weight="800">
+              ENDS IN:
+            </Text>
+            <Text size="24" font="montserrat">
+              22 hrs 1 min
+            </Text>
+          </div>
+        </div>
+        <img
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+          }}
+          width="504px"
+          height="495px"
+          src="/genie1.png"
+        />
+      </div>
     ),
     headers: {
       "Cache-Control": "max-age=0",
@@ -249,58 +379,225 @@ app.image("/token/:token/img", (c) => {
   });
 });
 
-app.transaction("/token/:token/buy", (c) => {
-  const token = c.req.param("token");
-  const degenToken = token.toUpperCase() == "DEGEN";
-  const { ethLottery, degenLottery } = c.var as {
-    degenLottery: LotteryDetails;
-    ethLottery: LotteryDetails;
-  };
-  if (degenToken) {
-    const ticketPrice = ethLottery.ticketPrice;
-    return c.contract({
-      abi: DegenLotteryAbi,
-      chainId: chainId,
-      functionName: MethodName.purchaseTickets,
-      args: [referrer, BigInt(ticketPrice)],
-      to: DEGEN_LOTTERY_ADDRESS,
-    });
-  } else {
-    const ticketPrice = ethLottery.ticketPrice;
-    return c.contract({
-      abi: LotteryAbi,
-      chainId: chainId,
-      functionName: MethodName.purchaseTickets,
-      args: [referrer],
-      to: ETH_LOTTERY_ADDRESS,
-      value: BigInt(ticketPrice),
-    });
-  }
-});
-
-// app.transaction("/token/:token/approveAndBuy", (c) => {
-//   console.log(c);
-//   // either approve or buy
-//   return c.res({
-//     chainId: chainId,
-//   });
-// });
-
-app.frame("/finish", (c) => {
-  // const { transactionId } = c;
+app.image("/tickets-img", (c) => {
   return c.res({
     image: (
-      <Box
-        alignHorizontal="center"
-        alignVertical="center"
-        width="100%"
-        height="100%"
+      <div
+        style={{
+          color: "white",
+          display: "flex",
+          fontSize: 60,
+          background: "linear-gradient(45deg, #251437, #693A9D)",
+          width: "100%",
+          height: "100%",
+          border: "4px solid white",
+          paddingTop: "30px",
+          paddingLeft: "50px",
+        }}
       >
-        <Text align="center" size="48">
-          Success
-        </Text>
-      </Box>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+            }}
+          >
+            <Text size="48" font="montserrat" weight="700">
+              {`EPIC! GOOD LUCK`}
+            </Text>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              marginTop: "10px",
+              maxWidth: "80%",
+            }}
+          >
+            <Text size="18" color="white" font="montserrat" weight="700">
+              {`YOU PURCHASED`}
+            </Text>
+            <div
+              style={{
+                display: "flex",
+                marginLeft: "10px",
+                marginRight: "10px",
+              }}
+            >
+              <Text size="18" font="montserrat" weight="700">
+                {`1`}
+              </Text>
+            </div>
+            <Text size="18" color="white" font="montserrat" weight="700">
+              {`TICKET`}
+            </Text>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              marginTop: "50px",
+              maxWidth: "80%",
+            }}
+          >
+            <Text size="18" color="white" font="montserrat" weight="800">
+              THE RAFFLE ENDS IN:
+            </Text>
+            <Text size="32" font="montserrat" weight="400">
+              22 hrs 1 min
+            </Text>
+            <div
+              style={{
+                display: "flex",
+                marginTop: "50px",
+                maxWidth: "80%",
+              }}
+            >
+              <Text size="18" color="white" font="montserrat" weight="600">
+                {`WE'LL DIRECT MESSAGE THE RESULTS, STAY TUNED!`}
+              </Text>
+            </div>
+          </div>
+        </div>
+        <img
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+          }}
+          width="504px"
+          height="495px"
+          src="/genie1transparent.png"
+        />
+      </div>
     ),
+    headers: {
+      "Cache-Control": "max-age=0",
+    },
+  });
+});
+
+app.image("/faq-img", (c) => {
+  return c.res({
+    image: (
+      <div
+        style={{
+          color: "white",
+          display: "flex",
+          fontSize: 60,
+          background: "linear-gradient(45deg, #251437, #693A9D)",
+          width: "100%",
+          height: "100%",
+          border: "4px solid white",
+          paddingTop: "30px",
+          paddingLeft: "50px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* HEADING */}
+          <div
+            style={{
+              display: "flex",
+            }}
+          >
+            <Text size="48" font="montserrat" weight="700">
+              FAQ
+            </Text>
+          </div>
+          {/* Q&A */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              maxWidth: "80%",
+              marginTop: "25px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                marginTop: "10px",
+              }}
+            >
+              <Text size="16" font="montserrat" weight="700">
+                {`How much do I win?`}
+              </Text>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                marginTop: "10px",
+              }}
+            >
+              <Text size="14" color="white" font="montserrat" weight="700">
+                {`It varies from lottery to lottery. There is no upper limit to the prize. It depends on how many tickets people have bought.`}
+              </Text>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                marginTop: "10px",
+              }}
+            >
+              <Text size="16" font="montserrat" weight="700">
+                {`How can I participate?`}
+              </Text>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                marginTop: "10px",
+              }}
+            >
+              <Text size="14" color="white" font="montserrat" weight="700">
+                {`You can participate by buying tickets or claiming free tickets.`}
+              </Text>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                marginTop: "10px",
+              }}
+            >
+              <Text size="16" font="montserrat" weight="700">
+                {`How will I know if I won or not?`}
+              </Text>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                marginTop: "10px",
+              }}
+            >
+              <Text size="14" color="white" font="montserrat" weight="700">
+                {`You will receive a DM in your inbox about the results of each lottery you participate in.`}
+              </Text>
+            </div>
+          </div>
+        </div>
+        <img
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+          }}
+          width="504px"
+          height="495px"
+          src="/genie1transparent.png"
+        />
+      </div>
+    ),
+    headers: {
+      "Cache-Control": "max-age=0",
+    },
   });
 });
 
@@ -322,55 +619,3 @@ export const POST = handle(app);
 // ```ts
 // devtools(app, { assetsPath: '/.frog' })
 // ```
-
-/* Useful snippet
-
-// increment
-app.frame("/lotto/:id", (c) => {
-  const id = c.req.param("id");
-  const { frameData, status } = c;
-  const { buttonValue, buttonIndex } = c;
-  let frameDataExists = false;
-  if (buttonIndex) {
-    frameDataExists = true;
-  }
-  let fd;
-  if (frameDataExists) {
-    fd = frameData as FrameData;
-  }
-  const { deriveState } = c;
-  const state = deriveState((previousState: any) => {
-    if (buttonValue) previousState.values.push(buttonValue);
-  });
-  return c.res({
-    // this can also be just an image
-    image: (
-      <div>
-        <div>{id}</div>
-        <div>{state}</div>
-        {fd ? (
-          <div>
-            <div>{fd.castId.fid}</div>
-            <div>{fd.castId.hash}</div>
-            <div>{fd.address}</div>
-            <div>{fd.network}</div>
-            <div>{fd.timestamp}</div>
-            <div>{fd.transactionId}</div>
-            <div>{fd.url}</div>
-          </div>
-        ) : (
-          <div>No Frame Data</div>
-        )}
-      </div>
-    ),
-    intents: [
-      <Button value="test">Test</Button>,
-      <Button.Link href="https://www.google.com">Link</Button.Link>,
-      <Button.Redirect location="https://www.google.com">
-        Redirect
-      </Button.Redirect>,
-    ],
-  });
-});
-
-*/

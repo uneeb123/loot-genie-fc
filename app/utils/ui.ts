@@ -43,12 +43,22 @@ export const {
       {
         name: "Montserrat",
         source: "google",
+        weight: 800,
+      },
+      {
+        name: "Montserrat",
+        source: "google",
         weight: 700,
       },
       {
         name: "Montserrat",
         source: "google",
         weight: 600,
+      },
+      {
+        name: "Montserrat",
+        source: "google",
+        weight: 400,
       },
     ],
   },
