@@ -26,3 +26,7 @@ export const countdownTimer = (seconds: number) => {
     seconds: remainingSeconds,
   };
 };
+
+export const removeDecimals = (num: bigint) => {
+  return Number(num / BigInt(10 ** 18));
+};

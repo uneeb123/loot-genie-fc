@@ -1,15 +1,12 @@
 /** @jsxImportSource frog/jsx */
 
 import {
-  DEGEN_LOTTERY_ADDRESS,
-  MethodName,
+  SimpleLotteryMethod,
   chainId,
-  referrer,
-  ETH_LOTTERY_ADDRESS,
-  SupportedToken,
+  SIMPLE_LOTTERY_ADDRESS,
   getLotteryDetails,
   LotteryDetails,
-} from "@/app/utils/lootGenie";
+} from "@/app/utils/lootGenieSimple";
 import {
   vars,
   Box,
@@ -27,9 +24,8 @@ import { devtools } from "frog/dev";
 import { neynar as neynarHub } from "frog/hubs";
 import { handle } from "frog/next";
 import { serveStatic } from "frog/serve-static";
-import { DegenLotteryAbi } from "@/app/utils/abi/DegenLottery";
-import { LotteryAbi } from "@/app/utils/abi/Lottery";
 import { neynar, type NeynarVariables } from "frog/middlewares";
+import { SimpleLotteryAbi } from "@/app/utils/abi/SimpleLottery";
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY as string;
 
@@ -52,12 +48,9 @@ const app = new Frog<{ State: State }>({
 // Uncomment to use Edge Runtime
 // export const runtime = 'edge'
 
-// TODO: hook to the contract
 app.use(async (c, next) => {
-  const ethLottery = await getLotteryDetails(SupportedToken.ETH);
-  const degenLottery = await getLotteryDetails(SupportedToken.DEGEN);
-  c.set("ethLottery" as never, ethLottery as never);
-  c.set("degenLottery" as never, degenLottery as never);
+  const lottery = await getLotteryDetails();
+  c.set("lottery" as never, lottery as never);
   await next();
 });
 
@@ -94,7 +87,6 @@ app.frame("/enter", (c) => {
   });
 });
 
-// TODO
 app.frame("/faq", (c) => {
   return c.res({
     image: "/faq-img",
@@ -102,7 +94,6 @@ app.frame("/faq", (c) => {
   });
 });
 
-// TODO: design this ticket
 app.frame("/tickets", (c) => {
   return c.res({
     image: "/tickets-img",
@@ -110,37 +101,31 @@ app.frame("/tickets", (c) => {
   });
 });
 
-// TODO: finish buy functionality
 app.transaction("/buy", (c) => {
-  const { ethLottery, degenLottery } = c.var as {
-    degenLottery: LotteryDetails;
-    ethLottery: LotteryDetails;
+  const { lottery } = c.var as {
+    lottery: LotteryDetails;
   };
-  const ticketPrice = ethLottery.ticketPrice;
+  const roundIndex = lottery.roundIndex;
   return c.contract({
-    abi: LotteryAbi,
+    abi: SimpleLotteryAbi,
     chainId: chainId,
-    functionName: MethodName.purchaseTickets,
-    args: [referrer],
-    to: ETH_LOTTERY_ADDRESS,
-    value: BigInt(ticketPrice),
+    functionName: SimpleLotteryMethod.purchaseTickets,
+    args: [roundIndex, 1],
+    to: SIMPLE_LOTTERY_ADDRESS,
   });
 });
 
-// TODO: finish claim functionality
 app.transaction("/claim", (c) => {
-  const { ethLottery, degenLottery } = c.var as {
-    degenLottery: LotteryDetails;
-    ethLottery: LotteryDetails;
+  const { lottery } = c.var as {
+    lottery: LotteryDetails;
   };
-  const ticketPrice = ethLottery.ticketPrice;
+  const roundIndex = lottery.roundIndex;
   return c.contract({
-    abi: LotteryAbi,
+    abi: SimpleLotteryAbi,
     chainId: chainId,
-    functionName: MethodName.purchaseTickets,
-    args: [referrer],
-    to: ETH_LOTTERY_ADDRESS,
-    value: BigInt(ticketPrice),
+    functionName: SimpleLotteryMethod.claimTicket,
+    args: [roundIndex],
+    to: SIMPLE_LOTTERY_ADDRESS,
   });
 });
 
@@ -230,6 +215,13 @@ app.image("/img", (c) => {
 });
 
 app.image("/enter-img", (c) => {
+  const { lottery } = c.var as {
+    lottery: LotteryDetails;
+  };
+  const potSizeDegen = lottery.prize;
+  const potSizeUsd = `$${lottery.prizeUsd}`;
+  const timeLeft = lottery.timeLeft;
+  const endTime = `${timeLeft.hours} hrs ${timeLeft.minutes} mins`;
   return c.res({
     image: (
       <div
@@ -314,7 +306,7 @@ app.image("/enter-img", (c) => {
                       fontSize: "1.3em",
                     }}
                   >
-                    {`69,420`}
+                    {potSizeDegen}
                   </div>
                   <img
                     style={{
@@ -327,11 +319,9 @@ app.image("/enter-img", (c) => {
                     src="/degen.png"
                   />
                 </div>
-                <Text
-                  size="16"
-                  color="white"
-                  font="montserrat"
-                >{`$123.1`}</Text>
+                <Text size="16" color="white" font="montserrat">
+                  {potSizeUsd}
+                </Text>
               </div>
             </div>
             <img
@@ -357,7 +347,7 @@ app.image("/enter-img", (c) => {
               ENDS IN:
             </Text>
             <Text size="24" font="montserrat">
-              22 hrs 1 min
+              {endTime}
             </Text>
           </div>
         </div>
