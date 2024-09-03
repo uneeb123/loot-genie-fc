@@ -370,6 +370,11 @@ app.image("/enter-img", (c) => {
 });
 
 app.image("/tickets-img", (c) => {
+  const { lottery } = c.var as {
+    lottery: LotteryDetails;
+  };
+  const timeLeft = lottery.timeLeft;
+  const endTime = `${timeLeft.hours} hrs ${timeLeft.minutes} mins`;
   return c.res({
     image: (
       <div
@@ -437,7 +442,7 @@ app.image("/tickets-img", (c) => {
               THE RAFFLE ENDS IN:
             </Text>
             <Text size="32" font="montserrat" weight="400">
-              22 hrs 1 min
+              {endTime}
             </Text>
             <div
               style={{
