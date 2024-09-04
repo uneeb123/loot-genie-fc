@@ -6,6 +6,8 @@ import {
   SIMPLE_LOTTERY_ADDRESS,
   getLotteryDetails,
   LotteryDetails,
+  claimTicket,
+  getUserTickets,
 } from "@/app/utils/lootGenieSimple";
 import {
   vars,
@@ -26,6 +28,9 @@ import { handle } from "frog/next";
 import { serveStatic } from "frog/serve-static";
 import { neynar, type NeynarVariables } from "frog/middlewares";
 import { SimpleLotteryAbi } from "@/app/utils/abi/SimpleLottery";
+import { followingAndRecastedLootGenie } from "@/app/utils/fc";
+import { getVerifiedAddressesByFid } from "@/app/utils/degen";
+import { Address } from "viem";
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY as string;
 
@@ -38,7 +43,7 @@ const app = new Frog<{ State: State }>({
   assetsPath: "/",
   browserLocation: "/",
   basePath: "/api",
-  hub: neynarHub({ apiKey: "38B3178D-8E63-4CB5-9DD8-6FE7C9D3F0D1" }),
+  hub: neynarHub({ apiKey: NEYNAR_API_KEY }),
   title: "Loot Genie",
   initialState: {
     enter: false,
@@ -72,32 +77,62 @@ app.frame("/", (c) => {
   });
 });
 
-app.frame("/enter", (c) => {
+app.frame("/enter", async (c) => {
+  const { interactor } = c.var as {
+    interactor: { fid: number };
+  };
+  // check if the user has recast and followed
+  // const userEligible = await followingAndRecastedLootGenie(interactor.fid);
+
+  // check if user already has tickets
+  const addresses = await getVerifiedAddressesByFid(interactor.fid);
+  const addressToDeposit = addresses[0] || SIMPLE_LOTTERY_ADDRESS;
+  let ticketCount = await getUserTickets(addressToDeposit as Address);
+
+  const userEligible = true;
   return c.res({
     image: "/enter-img",
-    intents: [
-      // <Button.Transaction target="/buy" action="/tickets">
-      //   BUY TICKET | 1K DEGEN
-      // </Button.Transaction>,
-      <Button.Transaction target="/claim" action="/tickets">
-        CLAIM FREE TICKET
-      </Button.Transaction>,
-      <Button.Reset>RESET</Button.Reset>,
-    ],
+    intents: userEligible
+      ? ticketCount > 0
+        ? [
+            <Button action="/tickets">MY TICKETS</Button>,
+            <Button.Reset>←</Button.Reset>,
+          ]
+        : [
+            <Button value="claim" action="/tickets">
+              CLAIM FREE TICKET
+            </Button>,
+            <Button.Reset>←</Button.Reset>,
+          ]
+      : [<Button.Reset>FOLLOW AND RECAST TO CLAIM FREE TICKET</Button.Reset>],
   });
 });
 
 app.frame("/faq", (c) => {
   return c.res({
     image: "/faq-img",
-    intents: [<Button.Reset>RESET</Button.Reset>],
+    intents: [<Button.Reset>←</Button.Reset>],
   });
 });
 
-app.frame("/tickets", (c) => {
+app.frame("/tickets", async (c) => {
+  // if claim has been triggered then gift user ticket
+  const { buttonValue } = c;
+  const { interactor } = c.var as {
+    interactor: { fid: number };
+  };
+  const addresses = await getVerifiedAddressesByFid(interactor.fid);
+  const addressToDeposit = addresses[0] || SIMPLE_LOTTERY_ADDRESS; // should have verified address
+  let ticketCount = await getUserTickets(addressToDeposit as Address);
+
+  if (buttonValue == "claim") {
+    console.log("Claiming...");
+    claimTicket(addressToDeposit as Address);
+    ticketCount += 1;
+  }
   return c.res({
-    image: "/tickets-img",
-    intents: [<Button.Reset>RESET</Button.Reset>],
+    image: `/tickets-img/${ticketCount}`,
+    intents: [<Button.Reset>←</Button.Reset>],
   });
 });
 
@@ -111,20 +146,6 @@ app.transaction("/buy", (c) => {
     chainId: chainId,
     functionName: SimpleLotteryMethod.purchaseTickets,
     args: [roundIndex, 1],
-    to: SIMPLE_LOTTERY_ADDRESS,
-  });
-});
-
-app.transaction("/claim", (c) => {
-  const { lottery } = c.var as {
-    lottery: LotteryDetails;
-  };
-  const roundIndex = lottery.roundIndex;
-  return c.contract({
-    abi: SimpleLotteryAbi,
-    chainId: chainId,
-    functionName: SimpleLotteryMethod.claimTicket,
-    args: [roundIndex],
     to: SIMPLE_LOTTERY_ADDRESS,
   });
 });
@@ -369,12 +390,18 @@ app.image("/enter-img", (c) => {
   });
 });
 
-app.image("/tickets-img", (c) => {
+app.image("/tickets-img/:count", (c) => {
+  const { count } = c.req.param();
+  const ticketCount = isNaN(Number(count)) ? 0 : Number(count);
   const { lottery } = c.var as {
     lottery: LotteryDetails;
   };
   const timeLeft = lottery.timeLeft;
   const endTime = `${timeLeft.hours} hrs ${timeLeft.minutes} mins`;
+
+  const title = ticketCount > 0 ? "EPIC! GOOD LUCK" : "HURRY!";
+  const ticketText = ticketCount == 1 ? "TICKET" : "TICKETS";
+
   return c.res({
     image: (
       <div
@@ -402,7 +429,7 @@ app.image("/tickets-img", (c) => {
             }}
           >
             <Text size="48" font="montserrat" weight="700">
-              {`EPIC! GOOD LUCK`}
+              {title}
             </Text>
           </div>
           <div
@@ -413,7 +440,7 @@ app.image("/tickets-img", (c) => {
             }}
           >
             <Text size="18" color="white" font="montserrat" weight="700">
-              {`YOU PURCHASED`}
+              {`YOU HAVE`}
             </Text>
             <div
               style={{
@@ -423,11 +450,11 @@ app.image("/tickets-img", (c) => {
               }}
             >
               <Text size="18" font="montserrat" weight="700">
-                {`1`}
+                {ticketCount.toString()}
               </Text>
             </div>
             <Text size="18" color="white" font="montserrat" weight="700">
-              {`TICKET`}
+              {ticketText}
             </Text>
           </div>
           <div

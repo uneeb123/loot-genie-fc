@@ -177,28 +177,6 @@ export const SimpleLotteryAbi = [
     type: "error",
   },
   {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-    ],
-    name: "UserAlreadyWhitelisted",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-    ],
-    name: "UserNotWhitelisted",
-    type: "error",
-  },
-  {
     anonymous: false,
     inputs: [
       {
@@ -502,32 +480,6 @@ export const SimpleLotteryAbi = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "player",
-        type: "address",
-      },
-    ],
-    name: "addToWhitelist",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "roundIndex",
-        type: "uint256",
-      },
-    ],
-    name: "claimTicket",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "uint256",
         name: "potSize",
         type: "uint256",
@@ -617,6 +569,53 @@ export const SimpleLotteryAbi = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "roundIndex",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+    ],
+    name: "getTickets",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "roundIndex",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "ticketCount",
+        type: "uint256",
+      },
+    ],
+    name: "giftTickets",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "_entropy",
         type: "address",
@@ -685,6 +684,29 @@ export const SimpleLotteryAbi = [
       },
     ],
     name: "purchaseTickets",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "roundIndex",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "ticketCount",
+        type: "uint256",
+      },
+    ],
+    name: "purchaseTicketsFor",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

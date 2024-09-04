@@ -10,6 +10,7 @@ const KENNY_FID = 2210;
 const GARRETT_FID = 2802;
 const DEGENPAD = 434908;
 const EDIT_FID = 230147;
+const ELU_FID = 414546;
 
 const airdrop2 = async (fid: string) => {
   const response = await fetch(
@@ -59,21 +60,23 @@ const getTodayAllowance = async (wallet: string, fid: string) => {
   const todayAllowance = allAllowances.find((allowance: any) =>
     isTodaySnapshot(allowance.snapshot_day)
   );
-  return Number(todayAllowance.remaining_tip_allowance);
+  return todayAllowance && todayAllowance.remaining_tip_allowance
+    ? Number(todayAllowance.remaining_tip_allowance)
+    : 0;
 };
 
 async function main() {
   //   await airdrop2(JACEK_FID.toString());
-  const addresses = await getVerifiedAddressesByFid(EDIT_FID);
+  const addresses = await getVerifiedAddressesByFid(ELU_FID);
   console.log(addresses);
   let totalAllowance = 0;
   await Promise.all(
     addresses.map(async (address) => {
-      const response = await getTodayAllowance(address, EDIT_FID.toString());
+      const response = await getTodayAllowance(address, ELU_FID.toString());
       console.log(response);
     })
   );
-  await allowance(addresses[0], EDIT_FID.toString());
+  await allowance(addresses[1], EDIT_FID.toString());
 }
 
 main().catch((error) => {

@@ -11,7 +11,7 @@ const allowance = async (wallet: string, fid: string) => {
   return json;
 };
 
-const getVerifiedAddressesByFid = async (fid: number) => {
+export const getVerifiedAddressesByFid = async (fid: number) => {
   const fids = [fid];
   const response = await client.fetchBulkUsers(fids);
   if (!response.users || response.users.length == 0) {

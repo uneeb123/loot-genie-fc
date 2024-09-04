@@ -1,15 +1,35 @@
-import { Address, createPublicClient, http, zeroAddress } from "viem";
+import {
+  Address,
+  createPublicClient,
+  createWalletClient,
+  http,
+  zeroAddress,
+} from "viem";
 import { base } from "viem/chains";
 import { SimpleLotteryAbi } from "./abi/SimpleLottery";
 import { countdownTimer, nFormatter, removeDecimals } from "./helper";
 import { getExchangeRates } from "./exchangeRate";
+import { privateKeyToAccount } from "viem/accounts";
 
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
 const ALCHEMY_BASE_URL = `https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`;
 export const SIMPLE_LOTTERY_ADDRESS = process.env
   .SIMPLE_LOTTERY_ADDRESS as Address;
+const PRIVATE_KEY = process.env.PRIVATE_KEY as Address;
+
+// ============================
+//    INITIALIZE CLIENTS
+// ============================
+
+const account = privateKeyToAccount(`0x${PRIVATE_KEY}`);
 
 const publicClient = createPublicClient({
+  chain: base,
+  transport: http(ALCHEMY_BASE_URL),
+});
+
+const walletClient = createWalletClient({
+  account,
   chain: base,
   transport: http(ALCHEMY_BASE_URL),
 });
@@ -20,7 +40,10 @@ export enum SimpleLotteryMethod {
   currentRounderIndex = "currentRoundIndex",
   rounds = "rounds",
   purchaseTickets = "purchaseTickets",
+  purchaseTicketsFor = "purchaseTicketsFor",
+  giftTickets = "giftTickets",
   claimTicket = "claimTicket",
+  getTickets = "getTickets",
 }
 
 const readContract = async (
@@ -34,6 +57,24 @@ const readContract = async (
     args: args,
   });
 };
+
+const writeContract = async (
+  methodName: SimpleLotteryMethod,
+  args: any = undefined
+) => {
+  const { request } = await publicClient.simulateContract({
+    account,
+    address: SIMPLE_LOTTERY_ADDRESS,
+    abi: SimpleLotteryAbi,
+    functionName: methodName as any,
+    args: args,
+  });
+  return await walletClient.writeContract(request);
+};
+
+// ===================================
+//    LOTTERY SPECIFIC FUNCTIONALITY
+// ===================================
 
 // latest index is current - 1
 const getLatestRoundIndex = async () =>
@@ -55,7 +96,7 @@ const LotteryInfo = async (roundIndex: bigint) => {
 const getTimeLeft = async (startTime: bigint, durationInSeconds: bigint) => {
   const endTime = Number(startTime + durationInSeconds);
   const currentTime = Math.floor(Date.now() / 1000);
-  const timeLeftInSeconds = endTime - currentTime;
+  const timeLeftInSeconds = Math.max(endTime - currentTime, 0);
   return countdownTimer(timeLeftInSeconds);
 };
 
@@ -93,3 +134,31 @@ export const getLotteryDetails = async (): Promise<LotteryDetails> => {
 };
 
 export const chainId = "eip155:8453";
+
+const giftTicketsToAddress = async (recipient: Address, roundIndex: bigint) => {
+  return await writeContract(SimpleLotteryMethod.giftTickets, [
+    recipient,
+    roundIndex,
+    1,
+  ]);
+};
+
+const currentTicketCount = async (user: Address, roundIndex: bigint) =>
+  (await readContract(SimpleLotteryMethod.getTickets, [
+    roundIndex,
+    user,
+  ])) as bigint;
+
+// checks the latest round index and gifts user ticket
+export const claimTicket = async (user: Address) => {
+  const latestRoundIndex = await getLatestRoundIndex();
+  const ticketCountForUser = await currentTicketCount(user, latestRoundIndex);
+  if (ticketCountForUser == BigInt(0)) {
+    await giftTicketsToAddress(user, latestRoundIndex);
+  }
+};
+
+export const getUserTickets = async (user: Address) => {
+  const latestRoundIndex = await getLatestRoundIndex();
+  return Number(await currentTicketCount(user, latestRoundIndex));
+};
