@@ -82,14 +82,14 @@ app.frame("/enter", async (c) => {
     interactor: { fid: number };
   };
   // check if the user has recast and followed
-  // const userEligible = await followingAndRecastedLootGenie(interactor.fid);
+  const userEligible = await followingAndRecastedLootGenie(interactor.fid);
+  // const userEligible = true;
 
   // check if user already has tickets
   const addresses = await getVerifiedAddressesByFid(interactor.fid);
   const addressToDeposit = addresses[0] || SIMPLE_LOTTERY_ADDRESS;
   let ticketCount = await getUserTickets(addressToDeposit as Address);
 
-  const userEligible = true;
   return c.res({
     image: "/enter-img",
     intents: userEligible
