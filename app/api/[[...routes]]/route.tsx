@@ -1,14 +1,6 @@
 /** @jsxImportSource frog/jsx */
 
-import {
-  SimpleLotteryMethod,
-  chainId,
-  SIMPLE_LOTTERY_ADDRESS,
-  getLotteryDetails,
-  LotteryDetails,
-  claimTicket,
-  getUserTickets,
-} from "@/app/utils/lootGenieSimple";
+import { SIMPLE_LOTTERY_ADDRESS } from "@/app/utils/lootGenieSimple";
 import {
   vars,
   Box,
@@ -27,10 +19,17 @@ import { neynar as neynarHub } from "frog/hubs";
 import { handle } from "frog/next";
 import { serveStatic } from "frog/serve-static";
 import { neynar, type NeynarVariables } from "frog/middlewares";
-import { SimpleLotteryAbi } from "@/app/utils/abi/SimpleLottery";
+// import { SimpleLotteryAbi } from "@/app/utils/abi/SimpleLottery";
 import { followingAndRecastedLootGenie } from "@/app/utils/fc";
 import { getVerifiedAddressesByFid } from "@/app/utils/degen";
 import { Address } from "viem";
+import {
+  claimTicket,
+  getPrize,
+  getTimeLeft,
+  getUserTickets,
+  GIVEAWAY_ADDRESS,
+} from "@/app/utils/lootGenieGiveaway";
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY as string;
 
@@ -53,11 +52,13 @@ const app = new Frog<{ State: State }>({
 // Uncomment to use Edge Runtime
 // export const runtime = 'edge'
 
+/*
 app.use(async (c, next) => {
   const lottery = await getLotteryDetails();
   c.set("lottery" as never, lottery as never);
   await next();
 });
+*/
 
 app.use(
   neynar({
@@ -70,9 +71,8 @@ app.frame("/", (c) => {
   return c.res({
     image: "/img",
     intents: [
-      <Button action="/enter">ENTER LOTTO</Button>,
-      <Button action="/tickets">MY TICKETS</Button>,
-      <Button action="/faq">FAQ</Button>,
+      <Button action="/enter">CLAIM</Button>,
+      <Button action="/tickets">CHECK STATUS</Button>,
     ],
   });
 });
@@ -95,16 +95,16 @@ app.frame("/enter", async (c) => {
     intents: userEligible
       ? ticketCount > 0
         ? [
-            <Button action="/tickets">MY TICKETS</Button>,
+            <Button action="/tickets">CHECK STATUS</Button>,
             <Button.Reset>←</Button.Reset>,
           ]
         : [
             <Button value="claim" action="/tickets">
-              CLAIM FREE TICKET
+              CLAIM
             </Button>,
             <Button.Reset>←</Button.Reset>,
           ]
-      : [<Button.Reset>FOLLOW AND RECAST TO CLAIM FREE TICKET</Button.Reset>],
+      : [<Button.Reset>FOLLOW AND RECAST TO CLAIM TICKET</Button.Reset>],
   });
 });
 
@@ -122,7 +122,7 @@ app.frame("/tickets", async (c) => {
     interactor: { fid: number };
   };
   const addresses = await getVerifiedAddressesByFid(interactor.fid);
-  const addressToDeposit = addresses[0] || SIMPLE_LOTTERY_ADDRESS; // should have verified address
+  const addressToDeposit = addresses[0]; // should have verified address
   let ticketCount = await getUserTickets(addressToDeposit as Address);
 
   if (buttonValue == "claim") {
@@ -136,6 +136,7 @@ app.frame("/tickets", async (c) => {
   });
 });
 
+/*
 app.transaction("/buy", (c) => {
   const { lottery } = c.var as {
     lottery: LotteryDetails;
@@ -149,6 +150,7 @@ app.transaction("/buy", (c) => {
     to: SIMPLE_LOTTERY_ADDRESS,
   });
 });
+*/
 
 // =============================================
 //                    IMAGES
@@ -192,7 +194,7 @@ app.image("/img", (c) => {
             }}
           >
             <Text size="24" color="white" font="montserrat" weight="700">
-              {`WE'RE GIVING AWAY DEGEN`}
+              {`WE'RE GIVING AWAY`}
             </Text>
           </div>
           <div
@@ -202,7 +204,7 @@ app.image("/img", (c) => {
             }}
           >
             <Text size="32" font="montserrat" weight="700">
-              FOR FREE!
+              50,000 DEGEN
             </Text>
           </div>
           <div
@@ -235,14 +237,20 @@ app.image("/img", (c) => {
   });
 });
 
-app.image("/enter-img", (c) => {
-  const { lottery } = c.var as {
-    lottery: LotteryDetails;
-  };
-  const potSizeDegen = lottery.prize;
-  const potSizeUsd = `$${lottery.prizeUsd}`;
-  const timeLeft = lottery.timeLeft;
-  const endTime = `${timeLeft.hours} hrs ${timeLeft.minutes} mins`;
+app.image("/enter-img", async (c) => {
+  const { prize, prizeUsd } = await getPrize();
+  const timeLeft = await getTimeLeft();
+  const potSizeDegen = prize;
+  const potSizeUsd = `$${prizeUsd}`;
+  let endTime = "";
+  if (timeLeft.days > 0) {
+    endTime = `${timeLeft.days} days ${timeLeft.hours} hrs ${timeLeft.minutes} mins`;
+  } else if (timeLeft.hours > 0) {
+    endTime = `${timeLeft.hours} hrs ${timeLeft.minutes} mins`;
+  } else {
+    endTime = `${timeLeft.minutes} mins`;
+  }
+
   return c.res({
     image: (
       <div
@@ -281,7 +289,7 @@ app.image("/enter-img", (c) => {
             }}
           >
             <Text size="18" color="white" font="montserrat" weight="700">
-              {`ENTER THE LOOT GENIE LOTTO FOR A CHANCE TO WIN DEGEN!`}
+              {`ONE LUCKY WINNER WILL BE SELECTED AT RANDOM`}
             </Text>
           </div>
           <div
@@ -390,14 +398,19 @@ app.image("/enter-img", (c) => {
   });
 });
 
-app.image("/tickets-img/:count", (c) => {
+app.image("/tickets-img/:count", async (c) => {
   const { count } = c.req.param();
   const ticketCount = isNaN(Number(count)) ? 0 : Number(count);
-  const { lottery } = c.var as {
-    lottery: LotteryDetails;
-  };
-  const timeLeft = lottery.timeLeft;
-  const endTime = `${timeLeft.hours} hrs ${timeLeft.minutes} mins`;
+
+  const timeLeft = await getTimeLeft();
+  let endTime = "";
+  if (timeLeft.days > 0) {
+    endTime = `${timeLeft.days} days ${timeLeft.hours} hrs ${timeLeft.minutes} mins`;
+  } else if (timeLeft.hours > 0) {
+    endTime = `${timeLeft.hours} hrs ${timeLeft.minutes} mins`;
+  } else {
+    endTime = `${timeLeft.minutes} mins`;
+  }
 
   const title = ticketCount > 0 ? "EPIC! GOOD LUCK" : "HURRY!";
   const ticketText = ticketCount == 1 ? "TICKET" : "TICKETS";

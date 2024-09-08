@@ -16,11 +16,13 @@ export const nFormatter = (num: number, digits: number = 4) => {
 };
 
 export const countdownTimer = (seconds: number) => {
-  const hours = Math.floor(seconds / 3600);
+  const days = Math.floor(seconds / (3600 * 24));
+  const hours = Math.floor((seconds % (3600 * 24)) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainingSeconds = seconds % 60;
 
   return {
+    days,
     hours,
     minutes,
     seconds: remainingSeconds,
