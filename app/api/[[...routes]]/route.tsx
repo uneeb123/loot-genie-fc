@@ -184,7 +184,7 @@ app.image("/img", (c) => {
             }}
           >
             <Text size="48" font="montserrat" weight="700">
-              LOOT GENIE
+              GIVEAWAY
             </Text>
           </div>
           <div
@@ -194,7 +194,7 @@ app.image("/img", (c) => {
             }}
           >
             <Text size="24" color="white" font="montserrat" weight="700">
-              {`WE'RE GIVING AWAY`}
+              {`ONE LUCKY WINNER WILL GET`}
             </Text>
           </div>
           <div
