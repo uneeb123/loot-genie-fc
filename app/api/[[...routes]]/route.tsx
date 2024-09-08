@@ -132,7 +132,12 @@ app.frame("/tickets", async (c) => {
   }
   return c.res({
     image: `/tickets-img/${ticketCount}`,
-    intents: [<Button.Reset>←</Button.Reset>],
+    intents: [
+      <Button.Link href="https://basescan.org/address/0x38A405eE29Acc00E3Ddb6fEE8411fCF033f0a366">
+        Basescan
+      </Button.Link>,
+      <Button.Reset>←</Button.Reset>,
+    ],
   });
 });
 
@@ -475,7 +480,7 @@ app.image("/tickets-img/:count", async (c) => {
               display: "flex",
               flexDirection: "column",
               marginTop: "50px",
-              maxWidth: "80%",
+              maxWidth: "100%",
             }}
           >
             <Text size="18" color="white" font="montserrat" weight="800">
