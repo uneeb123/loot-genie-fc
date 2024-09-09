@@ -69,7 +69,8 @@ app.use(
 
 app.frame("/", (c) => {
   return c.res({
-    image: "/img",
+    image:
+      "https://virtuoso-club.s3.amazonaws.com/genie-giveaway-farcaste-ezgif.com-optimize.gif",
     intents: [
       <Button action="/enter">CLAIM</Button>,
       <Button action="/tickets">CHECK STATUS</Button>,
